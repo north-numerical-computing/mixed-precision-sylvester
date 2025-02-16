@@ -1,0 +1,6 @@
+[submodule "deps/anymatrix"]
+	path = deps/anymatrix
+	url = https://github.com/north-numerical-computing/anymatrix.git
+[submodule "deps/cpfloat"]
+	path = deps/cpfloat
+	url = https://github.com/north-numerical-computing/cpfloat.git
