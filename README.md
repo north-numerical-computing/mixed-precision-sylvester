@@ -6,7 +6,7 @@ A. Dmytryshyn, M. Fasi, N. J. Higham, and X. Liu. *Mixed-precision algorithms fo
 
 ## Dependencies
 
-The code requires MATLAB R2022b or newer. To run the code, the following MATLAB toolboxes need to be installed:
+The code was developed and tested in MATLAB R2022b. To run the code, the following MATLAB toolboxes need to be installed:
 
 - [Anymatrix](https://github.com/north-numerical-computing/anymatrix)
 - [CPFloat: Custom-Precision Floating-Point numbers](github.com/north-numerical-computing/cpfloat)
@@ -48,7 +48,7 @@ The following algorithms in the manuscript are implemented:
 The data used to generate the figures in the manuscript can be generated running the MATLAB script:
 
 ```
->> arun_tests
+>> run_tests
 ```
 
 ## Acknowledgments
