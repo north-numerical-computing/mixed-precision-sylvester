@@ -2,7 +2,7 @@
 
 This repository contains the code used in the technical report:
 
-A. Dmytryshyn, M. Fasi, N. J. Higham, and X. Liu. *Mixed-precision algorithms for solving the Sylvester matrix equation*, Feb 2025.
+A. Dmytryshyn, M. Fasi, N. J. Higham, and X. Liu. *Mixed-precision algorithms for solving the Sylvester matrix equation*, ArXiv preprint [arXiv:2503.03456](https://doi.org/10.48550/arXiv.2503.03456) **[math NA]**, February 2025.
 
 ## Dependencies
 
