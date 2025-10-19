@@ -5,6 +5,7 @@ warning off
 % External projects (git submodules).
 addpath('deps/cpfloat/bin');
 addpath('deps/anymatrix');
+addpath('utils');
 
 % Install and set up SLICOT group if not already available.
 if all(~strcmp(anymatrix('g'), 'slicot'))

@@ -9,37 +9,15 @@ res_sylv = zeros(1, n_tests);
 % The first dimension (each row) is a different algorithms that we consider:
 %   1. sylvester_mprec_reorth (Algorithm 4.1)
 %   2. sylvester_mprec_inv (Algorithm 4.2)
-%   3. sylvester_mprec_gmresir2 (Algorithm 5.1 with ug = uh)
-%   4. sylvester_mprec_gmresir2 (Algorithm 5.1 with ug = ul)
+%   3. sylvester_mprec_gmresir2 (Algorithm A.1 with ug = uh)
+%   4. sylvester_mprec_gmresir2 (Algorithm A.1 with ug = ul)
 res_mprec = zeros(4, n_tests);
 iter = zeros(4, n_tests);
 
 Xmprec = {};
 is_lyap = false(1, n_tests);
-rng("default")
 
 for i = 1:n_tests
-
-  % Generate coefficients of matrix equation.
-  % rng(7);
-  % n = 300;
-  % coeff1 = 10*randn(n,n);% + eye(n);
-  % coeff2 = 10*randn(n,n);% + eye(n);
-  % coeff1 = anymatrix('sylvester_equations/ex_rand');
-  % coeff1 = full(anymatrix('sylvester_equations/rail1357'));
-
-  % coeff2 = coeff1';
-  % n = size(coeff1, 1);
-
-  % Symmetric case.
-  % coeff1 = coeff1 + coeff1';
-  % coeff2 = coeff2 + coeff2';
-
-  % Generate right-hand side of equation from the solution.
-  % Xsol = 1*randn(n,n);
-  % In =  eye(n);
-  % rhs = coeff1*Xsol + Xsol*coeff2;
-  % NN = norm(Xsol,2);
 
   fprintf("***");
   fprintf("  %d", cond_magnitudes(i));
@@ -68,24 +46,21 @@ for i = 1:n_tests
     Xsylv = lyap(coeff1, coeff2, -rhs);
   end
   toc
-  % tic
-  % Xorth = sylvester_32_64_orth(coeff1, coeff2, rhs);
-  % toc
 
-  tol = 1e-10 * max(m,n);
-  max_it = 35;
+  tol = 1e-12 * max(m,n);
+  max_it = 20;
 
   tic
-  [Xmprec{1}, iter(1, i)] = sylvester_mprec_reorth(coeff1, coeff2, rhs, tol, max_it);
+  [Xmprec{1}, iter(1, i)] = sylvester_mprec_reorth(coeff1, coeff2, rhs, tol, max_it, reduce_precision);
   toc
   tic
-  [Xmprec{2}, iter(2, i)] = sylvester_mprec_inv(coeff1, coeff2, rhs, tol, max_it);
+  [Xmprec{2}, iter(2, i)] = sylvester_mprec_inv(coeff1, coeff2, rhs, tol, max_it, reduce_precision);
   toc
   tic
-  [Xmprec{3}, iter(3, i)] = sylvester_mprec_gmresir2(coeff1, coeff2, rhs, 'uh', max_it, tol);
+  [Xmprec{3}, iter(3, i)] = sylvester_mprec_gmresir2(coeff1, coeff2, rhs, 'uh', max_it, tol, reduce_precision);
   toc
   tic
-  [Xmprec{4}, iter(4, i)] = sylvester_mprec_gmresir2(coeff1, coeff2, rhs, 'ul', max_it, tol);
+  [Xmprec{4}, iter(4, i)] = sylvester_mprec_gmresir2(coeff1, coeff2, rhs, 'ul', max_it, tol, reduce_precision);
   toc
 
   % Print results to screen

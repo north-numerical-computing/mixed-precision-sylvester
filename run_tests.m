@@ -1,12 +1,12 @@
 % Set up the environment.
-% This script should run automatically if MATLAB is started from this folder.
 initialization
 
 % Produce Figure 1.
-test_conditioning
-
-% Produce Figure 2.
 plot_optk
 
-% Produce Figure 3.
+% Produce Figure2 2 and 3.
 test_mixedprecision
+
+% Produce Figure 4.
+reduce_precision = @(X)single(X);
+test_conditioning

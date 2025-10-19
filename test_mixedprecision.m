@@ -37,41 +37,21 @@ matrices = {
            };
 
 n_tests = length(matrices);
+u = eps('double')/2;
 
 res_sylv = zeros(1, n_tests);
 % The first dimension (each row) is a different algorithms that we consider:
-%   1. sylvester_mprec_reorth (Algorithm 4.1)
-%   2. sylvester_mprec_inv (Algorithm 4.2)
-%   3. sylvester_mprec_gmresir2 (Algorithm 5.1 with ug = uh)
-%   4. sylvester_mprec_gmresir2 (Algorithm 5.1 with ug = ul)
+%   1. sylvester_mprec_reorth (Algorithm 4.1) in TF32
+%   2. sylvester_mprec_inv (Algorithm 4.2) in TF32
+%   3. sylvester_mprec_reorth (Algorithm 4.1) in 24-bit custom format
+%   4. sylvester_mprec_inv (Algorithm 4.2) in 24-bit custom format
 res_mprec = zeros(4, n_tests);
 iter = zeros(4, n_tests);
-
+cond_number = zeros(1,n_tests);
 Xmprec = {};
 is_lyap = false(1, n_tests);
 
 for i = 1:n_tests
-
-  % Generate coefficients of matrix equation.
-  % rng(7);
-  % n = 300;
-  % coeff1 = 10*randn(n,n);% + eye(n);
-  % coeff2 = 10*randn(n,n);% + eye(n);
-  % coeff1 = anymatrix('sylvester_equations/ex_rand');
-  % coeff1 = full(anymatrix('sylvester_equations/rail1357'));
-
-  % coeff2 = coeff1';
-  % n = size(coeff1, 1);
-
-  % Symmetric case.
-  % coeff1 = coeff1 + coeff1';
-  % coeff2 = coeff2 + coeff2';
-
-  % Generate right-hand side of equation from the solution.
-  % Xsol = 1*randn(n,n);
-  % In =  eye(n);
-  % rhs = coeff1*Xsol + Xsol*coeff2;
-  % NN = norm(Xsol,2);
 
   fprintf("***");
   fprintf("  %s", matrices{i}{:});
@@ -102,110 +82,129 @@ for i = 1:n_tests
   % toc
 
   [m, n] = size(rhs);
-  tol = 1e-10 * max(m,n);
+  tol = 1e-12 * max(m,n);
   max_it = 20;
 
   tic
-  [Xmprec{1}, iter(1, i)] = sylvester_mprec_reorth(coeff1, coeff2, rhs, tol);
+  [Xmprec{1}, iter(1, i)] = sylvester_mprec_reorth(coeff1, coeff2, rhs, tol, max_it, @convert_to_tf32);
   toc
   tic
-  [Xmprec{2}, iter(2, i)] = sylvester_mprec_inv(coeff1, coeff2, rhs, tol);
+  [Xmprec{2}, iter(2, i)] = sylvester_mprec_inv(coeff1, coeff2, rhs, tol, max_it, @convert_to_tf32);
   toc
-  % tic
-  % [Xmprec{3}, iter(3, i)] = sylvester_mprec_gmresir2(coeff1, coeff2, rhs, 'uh', max_it, tol);
-  % toc
-  % tic
-  % [Xmprec{4}, iter(4, i)] = sylvester_mprec_gmresir2(coeff1, coeff2, rhs, 'ul', max_it, tol);
-  % toc
+  tic
+  [Xmprec{3}, iter(3, i)] = sylvester_mprec_reorth(coeff1, coeff2, rhs, tol, max_it, @convert_to_custom_format);
+  toc
+  tic
+  [Xmprec{4}, iter(4, i)] = sylvester_mprec_inv(coeff1, coeff2, rhs, tol, max_it, @convert_to_custom_format);
+  toc
+
+  % Condition numbers
+  % cond_number(i) = compute_cond_sylv(coeff1, coeff2);
+  cond_number(i) = compute_cond_sylv1(coeff1', coeff2');
 
   % Print results to screen
   res_sylv(i) = norm(rhs - coeff1*Xsylv - Xsylv*coeff2, 2) /...
       (norm(rhs, 2) + norm(Xsylv, 2)*(norm(coeff1, 2)+norm(coeff2, 2)));
 
-  for j = 1 : 2
+  for j = 1 : 4
     res_mprec(j, i) = norm(rhs - coeff1*Xmprec{j} - Xmprec{j}*coeff2, 2) /...
         (norm(rhs, 2) + norm(Xmprec{j}, 2)*(norm(coeff1, 2)+norm(coeff2, 2)));
   end
 
-  fprintf('sylvester() has residual                        %.2e\n', res_sylv(i));
-  fprintf('sylvester_mprec_reorth() has residual           %.2e\n', res_mprec(1, i));
-  fprintf('sylvester_mprec_inv() has residual              %.2e\n', res_mprec(2, i));
-  % fprintf('sylvester_mprec_gmresir2_uh() has residual      %.2e\n', res_mprec(3, i));
-  % fprintf('sylvester_mprec_gmresir2_ul() has residual      %.2e\n', res_mprec(4, i));
-
+  fprintf('sylvester() has residual                                %.2e\n', res_sylv(i));
+  fprintf('sylvester_mprec_reorth() in TF32 has residual           %.2e\n', res_mprec(1, i));
+  fprintf('sylvester_mprec_inv() in TF32 has residual              %.2e\n', res_mprec(2, i));
+  fprintf('sylvester_mprec_reorth() in custom format has residual  %.2e\n', res_mprec(1, i));
+  fprintf('sylvester_mprec_inv() in custom format has residual     %.2e\n', res_mprec(2, i));
+  fprintf('The condition number of the equation is                 %.2e\n', cond_number(i));
 end
 
 %% Plot results.
 close
 
+% Sort by condition number.
+[~, indices] = sort(cond_number, 'descend');
+
 sylvester_strings = 'bx';
 mprec_strings = {'vm', '^g', '>k', '<b'};
 
-subplot(2,1,1)
-semilogy(1:n_tests, res_sylv(1:n_tests), sylvester_strings);
-hold on
-for j = 1:4
-  semilogy(1:n_tests, res_mprec(j, 1:n_tests), mprec_strings{j});
-end
-hold off
-axis([0, n_tests+1, 1e-24, 1e-10]);
-legend('sylvester',...
-       'sylvester\_mprec\_reorth',...
-       'sylvester\_mprec\_inv',...
-       'sylvester\_mprec\_gmresir2\_uh',...
-       'sylvester\_mprec\_gmresir2\_ul');
-legend('Location','northeastoutside');
-title('Residual')
-hold off
+for k = [1, 2]
+  subplot(2,2,(k-1)*2+1)
+  semilogy(1:n_tests, res_sylv(indices), sylvester_strings);
+  hold on
+  for j = 1:2
+    semilogy(1:n_tests, res_mprec((k-1)*2+j, indices), mprec_strings{(k-1)*2+j});
+  end
+  semilogy(1:n_tests, eps() * cond_number(indices), '-');
+  hold off
+  axis([0, n_tests+1, 1e-24, 1e-10]);
+  legend('sylvester',...
+         'sylvester\_mprec\_reorth',...
+         'sylvester\_mprec\_inv',...
+         'condu');
+  legend('Location','northeast');
+  title('Residual')
+  hold off
 
-subplot(2,1,2)
+  subplot(2,2,2*k)
 
-hold on
-for j = 1:4
-  plot(1:n_tests, iter(j, 1:n_tests), mprec_strings{j});
+  hold on
+  for j = 1:2
+    plot(indices, iter((k-1)*2+j, indices), mprec_strings{(k-1)*2+j});
+  end
+  hold off
+  axis([0, n_tests+1, 0, 20]);
+  title ('Number of iterations')
 end
-hold off
-axis([0, n_tests+1, 0, 20]);
-title ('Number of iterations')
 
 %% Save results to files.
-outfilename_sylv = sprintf('%s/%s', datfolder, 'test_mixedprecision_sylv.dat');
-outfile_sylv = fopen(outfilename_sylv, 'w');
-id_sylv = 1;
+filename_suffix = {'tf32', '24bit'};
+for k = [1, 2]
+  outfilename_sylv = sprintf('%s/%s_%s.dat', datfolder, 'test_mixedprecision_sylv', filename_suffix{k});
+  outfile_sylv = fopen(outfilename_sylv, 'w');
+  id_sylv = 1;
 
-outfilename_lyap = sprintf('%s/%s', datfolder, 'test_mixedprecision_lyap.dat');
-outfile_lyap = fopen(outfilename_lyap, 'w');
-id_lyap = 1;
+  outfilename_lyap = sprintf('%s/%s_%s.dat', datfolder, 'test_mixedprecision_lyap', filename_suffix{k});
+  outfile_lyap = fopen(outfilename_lyap, 'w');
+  id_lyap = 1;
 
-header = ['id    res_sylv  r_or i_or  r_in i_in ',...
-          'r_gmres_uh   i_gmres_uh   r_gmres_ul   i_gmres_ul\n'];
-fprintf(outfile_sylv, header);
-fprintf(outfile_lyap, header);
-for i = 1:n_tests
-  if is_lyap(i)
-    outfile = outfile_lyap;
-    id = id_lyap;
-    id_lyap = id_lyap + 1;
-  else
-    outfile = outfile_sylv;
-    id = id_sylv;
-    id_sylv = id_sylv + 1;
+  header = ['id    condu res_sylv  r_or i_or  r_in i_in\n'];
+  fprintf(outfile_sylv, header);
+  fprintf(outfile_lyap, header);
+  for i = indices
+    if is_lyap(i)
+      outfile = outfile_lyap;
+      id = id_lyap;
+      id_lyap = id_lyap + 1;
+    else
+      outfile = outfile_sylv;
+      id = id_sylv;
+      id_sylv = id_sylv + 1;
+    end
+    fprintf(outfile, '%2d    %.3e %.3e  ',...
+            id, eps() * cond_number(i), res_sylv(i));
+    for j = [1, 2]
+      fprintf(outfile, '%.3e %2d  ',...
+              res_mprec((k-1)*2+j, i), iter((k-1)*2+j, i));
+    end
+    fprintf(outfile, '\n');
+
   end
-  fprintf(outfile, '%2d    %.3e   %.3e %2d   %.3e %2d   %.3e %2d   %.3e %2d\n',...
-          id, res_sylv(i),...
-          res_mprec(1, i), iter(1, i), res_mprec(2, i), iter(2, i),...
-          res_mprec(3, i), iter(3, i), res_mprec(4, i), iter(4, i));
-
+  fclose(outfile_sylv);
+  fclose(outfile_lyap);
 end
-fclose(outfile_sylv);
-fclose(outfile_lyap);
 
-return
+function X = convert_to_tf32(Y)
+  fpopts.format = 't';
+  fpopts.explim = true;
+  fpopts.round = 1;
+  X = cpfloat(Y, fpopts);
+end
 
-%% Plot the eigenvalues.
-clf
-eigcoeff1 = eig(coeff1);
-eigcoeff2 = eig(coeff2);
-plot(real(eigcoeff1), imag(eigcoeff1), 'b+');
-hold on
-plot(real(eigcoeff2), imag(eigcoeff2), 'ro');
+function X = convert_to_custom_format(Y)
+  fpopts.format = 'custom';
+  fpopts.params = [16, -126, 127];
+  fpopts.explim = true;
+  fpopts.round = 1;
+  X = cpfloat(Y, fpopts);
+end
